@@ -1,4 +1,4 @@
-name: 🚀 Stage 22 - Live Spread Validator (Test Run)
+name: "🚀 Stage 22 - Live Spread Validator (5-min test)"
 
 on:
   schedule:
@@ -39,5 +39,4 @@ jobs:
           git add data/live_spread_log.txt || true
           git commit -m "🧮 Update live spread log [auto]" || true
           git push origin main || true
-
 
