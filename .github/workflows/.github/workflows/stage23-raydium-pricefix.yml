@@ -1,0 +1,67 @@
+name: Stage23 — Raydium Price Fix & Normalizer
+
+on:
+  workflow_run:
+    workflows: ["Stage 22.R-AUTO — Unified Orca + Raydium Live Spread Validator"]
+    types: [completed]
+  workflow_dispatch: {}
+
+jobs:
+  raydium_pricefix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests rich
+
+      - name: Run Raydium pool price normalizer
+        env:
+          RAYDIUM_POOLS_ENDPOINT: https://api.raydium.io/pairs
+        run: |
+          mkdir -p artifacts logs
+          echo "Starting Raydium price normalization..."
+          python - <<'PYCODE'
+import requests, json, pathlib
+out = pathlib.Path("artifacts/raydium_prices.jsonl")
+log = pathlib.Path("logs/raydium_pricefix.log")
+out.parent.mkdir(parents=True, exist_ok=True)
+r = requests.get("https://api.raydium.io/pairs", timeout=20)
+pairs = r.json() if r.ok else []
+good = []
+for p in pairs:
+    try:
+        base = float(p.get("baseVaultBalance", 0))
+        quote = float(p.get("quoteVaultBalance", 0))
+        if base and quote:
+            price = quote / base
+            if 0.1 < price < 1000:
+                good.append({
+                    "symbol": p.get("name"),
+                    "price": price,
+                    "program": p.get("programId"),
+                })
+    except Exception as e:
+        log.write_text(f"error: {e}\n", append=True)
+out.write_text("\n".join(json.dumps(g) for g in good))
+log.write_text(f"✅ normalized {len(good)} Raydium pools\n", append=True)
+print(f"✅ normalized {len(good)} Raydium pools")
+PYCODE
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: raydium-pricefix-artifacts
+          path: |
+            artifacts/raydium_prices.jsonl
+            logs/raydium_pricefix.log
