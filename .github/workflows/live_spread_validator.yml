@@ -1,0 +1,43 @@
+name: 🚀 Stage 22 - Live Spread Validator (Test Run)
+
+on:
+  schedule:
+    # Runs every 5 minutes for testing
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  validate-spreads:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: 📦 Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests python-dotenv
+
+      - name: ⚙️ Run Jupiter Live Spread Validator
+        run: |
+          echo ">>> Starting Stage 22 Validator..."
+          mkdir -p data
+          python core/jupiter_feed.py > data/live_spread_log.txt 2>&1 || true
+
+      - name: 📤 Commit and push spread data
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "AbhiBot Auto"
+          git config user.email "autobot@users.noreply.github.com"
+          git add data/live_spread_log.txt || true
+          git commit -m "🧮 Update live spread log [auto]" || true
+          git push origin main || true
+
+
