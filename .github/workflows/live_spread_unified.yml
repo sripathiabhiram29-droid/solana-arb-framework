@@ -1,0 +1,38 @@
+name: "Stage 22.R-AUTO — Unified Orca + Raydium Live Spread Validator"
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"   # every 10 minutes
+  workflow_dispatch:          # manual trigger allowed
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pandas
+
+      - name: Run unified validator
+        run: |
+          python core/live_spread_unified.py
+
+      - name: Commit and push results
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/live_spread_log.csv || true
+          git commit -m "📊 Auto-update live spread log [Orca + Raydium]" || true
+          git push origin main
+
