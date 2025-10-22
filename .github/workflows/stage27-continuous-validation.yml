@@ -1,0 +1,83 @@
+name: "Stage27 — 5-min Continuous Validation"
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"   # Runs every 5 minutes
+  workflow_dispatch:
+
+jobs:
+  continuous_validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas requests
+
+      - name: Run 5-min Validation Check
+        run: |
+          mkdir -p data
+          python - <<'EOF'
+          import pandas as pd, time, os, random
+
+          print("🔄 Starting 5-min Continuous Validation…")
+
+          # Verify opportunity log
+          path = "data/opportunity_log.csv"
+          if not os.path.exists(path):
+              print("❌ No opportunity log found, skipping validation.")
+              exit(0)
+
+          df = pd.read_csv(path)
+          if df.empty:
+              print("⚠️ Opportunity log empty, generating dummy validation entry.")
+              df = pd.DataFrame([{
+                  "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                  "pair": "N/A",
+                  "spread_%": 0,
+                  "action": "NO DATA"
+              }])
+
+          # Compute summary metrics
+          profit_trades = df[df["action"] == "PROFIT"].shape[0]
+          ignore_trades = df[df["action"] == "IGNORE"].shape[0]
+          health = "HEALTHY ✅" if profit_trades >= ignore_trades else "DEGRADED ⚠️"
+
+          summary = {
+              "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+              "profit_trades": profit_trades,
+              "ignore_trades": ignore_trades,
+              "status": health
+          }
+
+          os.makedirs("data", exist_ok=True)
+          pd.DataFrame([summary]).to_csv("data/validation_report.csv", index=False)
+
+          print("✅ Validation report generated:")
+          print(summary)
+          EOF
+
+      - name: Auto-commit validation report
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+          git add data/validation_report.csv
+          git commit -m "🧠 Auto-update: Continuous Validation Report"
+          git push
+
+      - name: Upload Validation Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-report
+          path: data/validation_report.csv
+
