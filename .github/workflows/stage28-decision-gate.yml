@@ -1,0 +1,70 @@
+name: "Stage28 — Decision Gate (Automated)"
+
+on:
+  workflow_run:
+    workflows: ["Stage27 — 5-min Continuous Validation"]
+    types: [completed]
+  workflow_dispatch:
+
+jobs:
+  decision_gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas numpy
+
+      - name: Run Decision Gate
+        run: |
+          echo "[🧠] Running automated decision gate..."
+          mkdir -p data
+          python - <<'PYCODE'
+import pandas as pd, os, json
+
+path = "data/validation_report.csv"
+if not os.path.exists(path):
+    print("⚠️ No validation report found.")
+    exit(0)
+
+df = pd.read_csv(path)
+mean_spread = df["spread"].mean() if "spread" in df else 0
+valid_signals = (df["status"] == "valid").sum() if "status" in df else 0
+
+decision = {
+    "avg_spread": mean_spread,
+    "valid_signals": int(valid_signals),
+    "decision": "PROCEED" if valid_signals > 5 and mean_spread > 0.3 else "HOLD"
+}
+
+os.makedirs("data", exist_ok=True)
+with open("data/decision_gate.json", "w") as f:
+    json.dump(decision, f, indent=2)
+
+print("[✅] Decision Gate completed — output:", json.dumps(decision, indent=2))
+PYCODE
+
+      - name: Upload Decision Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: decision_gate_output
+          path: data/decision_gate.json
+
+      - name: Auto Commit Results
+        run: |
+          git config --global user.name "GitHub Action"
+          git config --global user.email "actions@github.com"
+          git add data/decision_gate.json || true
+          git commit -m "🧠 Auto-update: Decision Gate output [Stage28]" || echo "No changes"
+          git push origin main || echo "No push needed"
+
