@@ -1,0 +1,68 @@
+name: "Stage26 — Opportunity Logger with Auto-Commit"
+
+on:
+  workflow_run:
+    workflows: ["Stage25 — Working Price Feed with Auto-Testing"]
+    types: [completed]
+  workflow_dispatch:
+
+jobs:
+  opportunity_logger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas requests
+
+      - name: Run Opportunity Logger
+        run: |
+          mkdir -p data
+          python - <<'EOF'
+          import pandas as pd, random, time, json, os
+
+          # Simulate detection of arbitrage opportunities
+          symbols = ["SOL/USDC", "BONK/USDC", "WIF/USDC", "MOBILE/USDC"]
+          logs = []
+
+          for symbol in symbols:
+              spread = round(random.uniform(-1.0, 3.0), 3)
+              status = "PROFIT" if spread > 0.3 else "IGNORE"
+              logs.append({
+                  "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                  "pair": symbol,
+                  "spread_%": spread,
+                  "action": status
+              })
+
+          df = pd.DataFrame(logs)
+          os.makedirs("data", exist_ok=True)
+          df.to_csv("data/opportunity_log.csv", index=False)
+          print("\n✅ Opportunity log generated:")
+          print(df)
+          EOF
+
+      - name: Auto-commit log file
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+          git add data/opportunity_log.csv
+          git commit -m "🪙 Auto-update: Opportunity Log"
+          git push
+
+      - name: Upload Opportunity Log Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: opportunity-log
+          path: data/opportunity_log.csv
+
