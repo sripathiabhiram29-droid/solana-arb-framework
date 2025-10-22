@@ -18,7 +18,7 @@ jobs:
       - name: Setup Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: Install dependencies
         run: |
@@ -30,7 +30,7 @@ jobs:
         run: |
           echo "[🧠] Running automated decision gate..."
           mkdir -p data
-          python <<'PYCODE'
+          cat > run_decision_gate.py <<EOF
 import os, json, pandas as pd
 
 os.makedirs("data", exist_ok=True)
@@ -55,7 +55,8 @@ with open("data/decision_gate.json", "w") as f:
 
 print("[✅] Decision Gate completed — output:")
 print(json.dumps(decision, indent=2))
-PYCODE
+EOF
+          python run_decision_gate.py
 
       - name: Upload Decision Artifact
         uses: actions/upload-artifact@v4
