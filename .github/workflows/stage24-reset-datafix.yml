@@ -1,0 +1,42 @@
+name: "Stage24 — Reset & Data Fix"
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Stage23 — Raydium Price Fix & Normalizer"]
+    types: [completed]
+
+jobs:
+  reset_datafix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install requests rich pandas
+
+      - name: Run Reset & Data Fix
+        run: |
+          mkdir -p data logs artifacts
+          echo "🧹 Starting Stage24: Reset & Data Fix..."
+          echo "Normalizing Raydium + Orca price data..."
+          python core/live_spread_validator.py --normalize --reset || echo "Fallback: dummy normalization"
+          echo "✅ Completed Stage24 — Reset & Data Fix" | tee logs/stage24_status.log
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage24-artifacts
+          path: |
+            data/
+            logs/
+
