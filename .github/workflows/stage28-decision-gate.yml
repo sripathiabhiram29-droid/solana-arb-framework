@@ -26,32 +26,35 @@ jobs:
           pip install pandas numpy
 
       - name: Run Decision Gate
+        shell: bash
         run: |
           echo "[🧠] Running automated decision gate..."
           mkdir -p data
-          python - <<'PYCODE'
-import pandas as pd, os, json
+          python <<'PYCODE'
+import os, json, pandas as pd
 
+os.makedirs("data", exist_ok=True)
 path = "data/validation_report.csv"
+
 if not os.path.exists(path):
-    print("⚠️ No validation report found.")
+    print("⚠️ No validation_report.csv found.")
     exit(0)
 
 df = pd.read_csv(path)
 mean_spread = df["spread"].mean() if "spread" in df else 0
-valid_signals = (df["status"] == "valid").sum() if "status" in df else 0
+valid_signals = int((df["status"] == "valid").sum()) if "status" in df else 0
 
 decision = {
     "avg_spread": mean_spread,
-    "valid_signals": int(valid_signals),
+    "valid_signals": valid_signals,
     "decision": "PROCEED" if valid_signals > 5 and mean_spread > 0.3 else "HOLD"
 }
 
-os.makedirs("data", exist_ok=True)
 with open("data/decision_gate.json", "w") as f:
     json.dump(decision, f, indent=2)
 
-print("[✅] Decision Gate completed — output:", json.dumps(decision, indent=2))
+print("[✅] Decision Gate completed — output:")
+print(json.dumps(decision, indent=2))
 PYCODE
 
       - name: Upload Decision Artifact
