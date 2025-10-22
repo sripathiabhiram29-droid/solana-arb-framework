@@ -1,0 +1,80 @@
+name: "Stage25 — Working Price Feed with Auto-Testing"
+
+on:
+  workflow_run:
+    workflows: ["Stage24 — Reset & Data Fix"]
+    types: [completed]
+  workflow_dispatch:
+
+jobs:
+  pricefeed_autotest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install requests pandas rich
+
+      - name: Run Price Feed Auto-Test
+        run: |
+          echo "🚀 Stage25: Starting live price feed auto-test"
+          mkdir -p data logs artifacts
+          python - <<'PYCODE'
+import requests, pandas as pd, time, sys
+
+def get_price(api):
+    try:
+        r = requests.get(api, timeout=10)
+        r.raise_for_status()
+        return float(r.json().get("price", 0))
+    except Exception as e:
+        print(f"⚠️ API error from {api}: {e}")
+        return 0
+
+apis = {
+    "Raydium": "https://api.raydium.io/price",
+    "Orca": "https://api.orca.so/price"
+}
+
+rows = []
+for i in range(5):  # 5 test cycles
+    prices = {k: get_price(v) for k, v in apis.items()}
+    spread = abs(prices["Raydium"] - prices["Orca"]) / max(prices["Raydium"], 1)
+    ts = time.strftime("%Y-%m-%d %H:%M:%S")
+    rows.append({"timestamp": ts, **prices, "spread": spread})
+    time.sleep(5)
+
+df = pd.DataFrame(rows)
+df.to_csv("data/live_price_feed.csv", index=False)
+print("✅ Price feed collected.")
+
+# --- Auto-testing checks ---
+errors = []
+if (df["Raydium"] <= 0).any() or (df["Orca"] <= 0).any():
+    errors.append("Zero or invalid price values detected.")
+if (df["spread"] > 0.05).any():
+    errors.append("Spread exceeds 5% — unrealistic pricing.")
+if errors:
+    print("❌ TEST FAILED:", errors)
+    sys.exit(1)
+else:
+    print("✅ All auto-tests passed successfully.")
+PYCODE
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage25-pricefeed-results
+          path: |
+            data/
+            logs/
+
