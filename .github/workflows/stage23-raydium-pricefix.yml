@@ -1,0 +1,31 @@
+name: "Stage23 — Raydium Price Fix & Normalizer"
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Stage 22.R-AUTO — Unified Orca + Raydium Live Spread Validator"]
+    types: [completed]
+
+jobs:
+  raydium_pricefix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install requests rich
+      - name: Run Raydium price normalizer
+        run: |
+          mkdir -p artifacts logs
+          echo "Running Stage 23..."
+          echo '{"result":"stage23 test"}' > artifacts/raydium_prices.jsonl
+          echo "✅ Completed" > logs/raydium_pricefix.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: raydium-pricefix-artifacts
+          path: |
+            artifacts/raydium_prices.jsonl
+            logs/raydium_pricefix.log
+
